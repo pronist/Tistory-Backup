@@ -33,10 +33,19 @@ export default {
     }
   },
   methods: {
+    /**
+     * Get Tistory Access Token from Tistory
+     *
+     * @param {string} url
+     *
+     * @return {string} Tistory Access Token
+     */
     async getAccessToken (url) {
       const parts = url.split('?')
+
       if (parts.length > 1) {
         const queries = qs.parse(parts[1])
+
         if (queries.code) {
           const { data } = await tistory.auth.getAccessToken(
             this.$store.state.tistory.tistory.clientId,
@@ -44,10 +53,14 @@ export default {
             this.$store.state.tistory.tistory.redirectUri,
             queries.code
           )
+
           return data.access_token
         }
       }
     },
+    /**
+     * Login
+     */
     login () {
       const tistoryWindow = new electron.BrowserWindow(this.windowOptions)
       const contents = tistoryWindow.webContents
@@ -57,10 +70,12 @@ export default {
           tistoryWindow.close()
 
           const accessToken = await this.getAccessToken(contents.getURL())
+
           if (accessToken) {
             this.$store.dispatch('setAccessToken', { accessToken })
             return this.$router.push('/extractor')
           }
+
           return Swal.fire({ icon: 'error', title: '이런!', text: '티스토리 인증에 실패했습니다.' })
         }
       })
@@ -71,11 +86,15 @@ export default {
         this.$store.state.tistory.tistory.responseType
       ))
     },
+    /**
+     * Logout
+     */
     logout () {
       const logoutWindow = new electron.BrowserWindow(this.windowOptions)
       logoutWindow.loadURL('https://tistory.com/auth/logout')
 
       const contents = logoutWindow.webContents
+
       contents.on('did-get-redirect-request', (event, oldURL, newURL) => {
         if (newURL === 'https://www.tistory.com/') {
           logoutWindow.close()

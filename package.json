@@ -1,9 +1,9 @@
 {
   "name": "tistory-backup",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "author": "SangWoo Jeong <pronist@naver.com>",
   "description": "a Desktop Application for posts backup of Tistroy blog",
-  "license": null,
+  "license": "MIT",
   "main": "./dist/electron/main.js",
   "scripts": {
     "build": "node .electron-vue/build.js && electron-builder",
@@ -54,6 +54,8 @@
     }
   },
   "dependencies": {
+    "axios": "^0.18.1",
+    "cheerio": "^1.0.0-rc.9",
     "jszip": "^3.5.0",
     "moment": "^2.27.0",
     "qs": "^6.9.4",
@@ -83,7 +85,6 @@
     "css-loader": "^0.28.11",
     "del": "^3.0.0",
     "devtron": "^1.4.0",
-    "electron": "^2.0.4",
     "electron": "^2.0.18",
     "electron-builder": "^20.19.2",
     "electron-debug": "^1.5.0",

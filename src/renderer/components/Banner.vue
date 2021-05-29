@@ -1,6 +1,6 @@
 <template lang="pug">
-  footer#footer(role='footer')
-    .copyright ⓒ 2020. #[a(href='https://github.com/pronist' target='_blank') 정상우]. all rights reserved
+  footer
+    .copyright ⓒ 2020-2021. #[a(href='https://github.com/pronist' target='_blank') 정상우]. all rights reserved
 </template>
 
 <script>
@@ -10,18 +10,19 @@ export default {
 </script>
 
 <style lang="stylus">
-  #footer
-    background-color #1e1f21
+  $Color = alpha(black, .5)
+
+  footer
     position fixed
-    bottom 0
+    bottom 25px
     right 0
     width 100%
-    height 50px
-    line-height 50px
-    color white
+    color $Color
     text-align center
-    font-size .9rem
+    font-size .82rem
     a
       text-decoration underline !important
-      color white
+      color $Color
+      &:hover
+        color black
 </style>
