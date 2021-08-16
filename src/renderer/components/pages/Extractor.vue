@@ -233,10 +233,14 @@ export default {
         return
       }
 
-      const zip = await this.buildZip(checkedNames)
-      this.isRunning ? this.createZip(zip) : Swal.fire({ icon: 'warning', title: '경고', text: '백업이 중지되었습니다.' })
+      if (this.isRunning) {
+        Swal.fire({ icon: 'warning', title: '경고', text: '이미 백업이 진행 중입니다.' })
+      } else {
+        const zip = await this.buildZip(checkedNames)
+        this.isRunning ? this.createZip(zip) : Swal.fire({ icon: 'warning', title: '경고', text: '백업이 중지되었습니다.' })
 
-      this.isRunning = false
+        this.isRunning = false
+      }
     }
   },
   components: {
