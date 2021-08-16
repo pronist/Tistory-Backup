@@ -23,6 +23,7 @@
             td {{ blog.url }}
             td {{ blog.default }}
       button#extract(ref='extract' @click='zip(checkedNames)') 시작하기
+      button#stop(ref='stop' @click='isRunning = false') 중지
       a#download(href='#' ref='download') 다운받기
       #metainfo
         .url {{ url }}
@@ -45,19 +46,18 @@ const electron = require('electron').remote
 
 export default {
   name: 'extractor',
-  mounted () {
-    tistory.blog.info(this.$store.state.tistory.accessToken)
-      .catch(reason => {
-        Swal.fire({ icon: 'error', title: '이런!', text: '블로그 정보를 불러올 수 없습니다.' })
-        this.error = '블로그 정보를 불러올 수 없습니다.'
+  async mounted () {
+    try {
+      const { data } = await tistory.blog.info(this.$store.state.tistory.accessToken)
 
-        // Redirect '/' to retry login
-        this.$router.push('/')
-      })
-      .then(({ data }) => {
-        this.blogs = data.tistory.item.blogs
-        this.userProfile = this.blogs.filter(blog => blog.default === 'Y')[0].profileImageUrl
-      })
+      this.blogs = data.tistory.item.blogs
+      this.userProfile = this.blogs.filter(blog => blog.default === 'Y')[0].profileImageUrl
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: '에러', text: '블로그 정보를 불러올 수 없습니다.' })
+
+      // Redirect '/' to retry login
+      this.$router.push('/')
+    }
   },
   data () {
     return {
@@ -66,7 +66,8 @@ export default {
       checkedNames: [],
       url: '',
       message: '',
-      error: ''
+      error: '',
+      isRunning: false
     }
   },
   methods: {
@@ -137,21 +138,21 @@ export default {
     async addPost (blogFolder, blogName, post) {
       const postFolder = blogFolder.folder(`${post.id}. ` + post.title)
 
-      const { data } = await tistory.post.read(this.$store.state.tistory.accessToken, { blogName, postId: post.id })
-        .catch(reason => {
-          Swal.fire({ icon: 'error', title: '이런!', text: `${post.postUrl} 에 해당하는 포스트를 찾을 수 없습니다.` })
-          this.error = `${post.postUrl} 에 해당하는 포스트를 찾을 수 없습니다.`
-        })
+      try {
+        const { data } = await tistory.post.read(this.$store.state.tistory.accessToken, { blogName, postId: post.id })
 
-      this.message = path.join(blogName, post.title)
-      this.url = post.postUrl
+        this.message = path.join(blogName, post.title)
+        this.url = post.postUrl
 
-      const parser = new DOMParser()
-      const doc = parser.parseFromString(data.tistory.item.content, 'text/html')
-      const pathname = this.message
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(data.tistory.item.content, 'text/html')
+        const pathname = this.message
 
-      await this.addImages(doc, postFolder, pathname)
-      this.addHtml(doc, postFolder, pathname)
+        await this.addImages(doc, postFolder, pathname)
+        this.addHtml(doc, postFolder, pathname)
+      } catch (e) {
+        this.error = `${post.postUrl} 에 해당하는 포스트를 찾을 수 없습니다.`
+      }
     },
     /**
      * Add blog in Zip
@@ -162,18 +163,24 @@ export default {
     async addBlog (zip, blogName) {
       const blogFolder = zip.folder(blogName)
 
-      for (let page = 1; ; page++) {
-        const { data } = await tistory.post.list(this.$store.state.tistory.accessToken, { blogName, page })
-          .catch(reason => {
-            Swal.fire({ icon: 'error', title: '이런!', text: `https://${blogName}.tistory.com/${page} 에 해당하는 글 목록을 불러올 수 없습니다.` })
-            this.error = `https://${blogName}.tistory.com/${page} 에 해당하는 글 목록을 불러올 수 없습니다.`
-          })
+      for (let page = 1; this.isRunning; page++) {
+        try {
+          const { data } = await tistory.post.list(this.$store.state.tistory.accessToken, { blogName, page })
 
-        if (data.tistory.item.hasOwnProperty('posts')) {
-          for (let post of data.tistory.item.posts) {
-            await this.addPost(blogFolder, blogName, post)
-          }
-        } else break
+          if (data.tistory.item.hasOwnProperty('posts')) {
+            for (let post of data.tistory.item.posts) {
+              if (this.isRunning) {
+                await this.addPost(blogFolder, blogName, post)
+              } else break
+            }
+          } else break
+        } catch (e) {
+          Swal.fire({ icon: 'error', title: '에러', text: `https://${blogName}.tistory.com/?page=${page} 에 해당하는 글 목록을 불러올 수 없습니다.` })
+          this.error = `https://${blogName}.tistory.com/?page=${page} 에 해당하는 글 목록을 불러올 수 없습니다.`
+          this.isRunning = false
+
+          break
+        }
       }
     },
     /**
@@ -186,8 +193,12 @@ export default {
     async buildZip (checkedNames) {
       const zip = new JSZip()
 
+      this.isRunning = true
+
       for (const blog of checkedNames) {
-        await this.addBlog(zip, blog)
+        if (this.isRunning) {
+          await this.addBlog(zip, blog)
+        } else break
       }
 
       return zip
@@ -206,7 +217,7 @@ export default {
         this.$refs.download.setAttribute('download', moment().format('X_YYYY_MM_DD'))
         this.$refs.download.style.display = 'inline-block'
 
-        Swal.fire({ icon: 'success', title: '백업 성공!', text: '티스토리 블로그의 백업이 완료되었습니다. 다운로드 버튼을 눌러 결과를 확인해보세요.' })
+        Swal.fire({ icon: 'success', title: '성공', text: '티스토리 블로그의 백업이 완료되었습니다. 다운로드 버튼을 눌러 결과를 확인해보세요.' })
       })
     },
     /**
@@ -216,14 +227,16 @@ export default {
      */
     async zip (checkedNames) {
       if (checkedNames.length <= 0) {
-        Swal.fire({ icon: 'error', title: '이런!', text: '티스토리 블로그를 백업하려면 블로그 선택해야합니다.' })
+        Swal.fire({ icon: 'error', title: '에러', text: '티스토리 블로그를 백업하려면 블로그 선택해야합니다.' })
         this.error = '티스토리 블로그를 백업하려면 블로그 선택해야합니다.'
 
         return
       }
 
       const zip = await this.buildZip(checkedNames)
-      this.createZip(zip)
+      this.isRunning ? this.createZip(zip) : Swal.fire({ icon: 'warning', title: '경고', text: '백업이 중지되었습니다.' })
+
+      this.isRunning = false
     }
   },
   components: {
@@ -257,7 +270,7 @@ export default {
         font-size .92rem
         font-weight 600
         color black
-      #extract, #download
+      #extract, #download, #stop
         color white
         padding 15px 30px
         border-radius 5px
@@ -266,10 +279,13 @@ export default {
         border none
         cursor pointer
         font-size 1rem
+      #extract, #stop
+        margin-right 12px
       #extract
         background-color #ed5207
         display inline-block
-        margin-right 12px
+      #stop
+        background-color red
       #download
         background-color black
         display none
